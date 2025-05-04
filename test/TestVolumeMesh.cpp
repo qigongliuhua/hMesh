@@ -1,0 +1,246 @@
+﻿
+#include "../hMesh.h"
+#include "TestFramework.h"
+
+using namespace std;
+using hmesh::CellType;
+using hmesh::FaceType;
+using VolumeMesh = hmesh::VolumeMesh<>;
+
+void TestVolumeMesh() {
+    tf::TestSuite suite("VolumeMesh");
+
+    suite.addTestCase("Basic Ability Test 1", []() {
+        VolumeMesh vol;
+        ASSERT_EQUAL(vol.addVert({0, 0, 0}), 0);
+        ASSERT_EQUAL(vol.addVert({1, 0, 0}), 1);
+        ASSERT_EQUAL(vol.addVert({1, 1, 0}), 2);
+        ASSERT_EQUAL(vol.addVert({0, 1, 0}), 3);
+        ASSERT_EQUAL(vol.addVert({0, 0, 1}), 4);
+        ASSERT_EQUAL(vol.addVert({1, 0, 1}), 5);
+        ASSERT_EQUAL(vol.addVert({1, 1, 1}), 6);
+        ASSERT_EQUAL(vol.addVert({0, 1, 1}), 7);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 7}), 0);
+        ASSERT_EQUAL(vol.addVert({2, 0, 0}), 8);
+        ASSERT_EQUAL(vol.addVert({2, 0, 1}), 9);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_PRISM>({1, 8, 2, 5, 9, 6}), 1);
+        ASSERT_EQUAL(vol.addVert({0.5, 0.5, 2}), 10);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_PYRAMID>({4, 5, 6, 7, 10}), 2);
+        ASSERT_EQUAL(vol.addVert({1, 0, -1}), 11);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_TET>({1, 2, 8, 11}), 3);
+        ASSERT_EQUAL(vol.numVerts(), 12);
+        ASSERT_EQUAL(vol.numEdges(), 24);
+        ASSERT_EQUAL(vol.numFaces(), 17);
+        ASSERT_EQUAL(vol.numCells(), 4);
+
+        hmesh::io::SaveMesh(ROOT_PATH "/result/c1.mesh", vol);
+
+        ASSERT_EQUAL(vol.vertEdges(0).size(), 3);
+
+        // 验证邻接关系
+        ASSERT_EQUAL(vol.vertEdges(0).size(), 3);
+        ASSERT_EQUAL(vol.vertEdges(1).size(), 5);
+        ASSERT_EQUAL(vol.vertEdges(2).size(), 5);
+        ASSERT_EQUAL(vol.vertEdges(3).size(), 3);
+        ASSERT_EQUAL(vol.vertEdges(4).size(), 4);
+        ASSERT_EQUAL(vol.vertFaces(0).size(), 3);
+        ASSERT_EQUAL(vol.vertFaces(1).size(), 7);
+        ASSERT_EQUAL(vol.vertFaces(2).size(), 7);
+        ASSERT_EQUAL(vol.vertFaces(4).size(), 5);
+        ASSERT_EQUAL(vol.vertCells(0).size(), 1);
+        ASSERT_EQUAL(vol.vertCells(1).size(), 3);
+        ASSERT_EQUAL(vol.vertCells(4).size(), 2);
+        ASSERT_EQUAL(vol.vertCells(5).size(), 3);
+        ASSERT_EQUAL(vol.edgeFaces(0).size(), 2);
+        ASSERT_EQUAL(vol.edgeFaces(1).size(), 4);
+        ASSERT_EQUAL(vol.edgeFaces(8).size(), 3);
+        ASSERT_EQUAL(vol.edgeFaces(9).size(), 4);
+        ASSERT_EQUAL(vol.edgeCells(0).size(), 1);
+        ASSERT_EQUAL(vol.edgeCells(1).size(), 3);
+        ASSERT_EQUAL(vol.edgeCells(8).size(), 2);
+        ASSERT_EQUAL(vol.edgeCells(9).size(), 3);
+        ASSERT_EQUAL(vol.faceCells(0).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(4).size(), 2);
+        ASSERT_EQUAL(vol.faceCells(1).size(), 2);
+        ASSERT_EQUAL(vol.faceCells(6).size(), 2);
+        ASSERT_EQUAL(vol.edgeFaces(vol.getCell(2).edges()[4]).size(), 2);
+        ASSERT_EQUAL(vol.edgeFaces(vol.getCell(2).edges()[0]).size(), 3);
+        ASSERT_EQUAL(vol.edgeFaces(vol.getCell(1).edges()[1]).size(), 3);
+        ASSERT_EQUAL(vol.edgeCells(vol.getCell(1).edges()[1]).size(), 2);
+        ASSERT_EQUAL(vol.edgeCells(vol.getCell(1).edges()[4]).size(), 1);
+        ASSERT_EQUAL(vol.edgeFaces(vol.getCell(1).edges()[4]).size(), 2);
+        ASSERT_EQUAL(vol.faceCells(vol.getCell(1).faces()[2]).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(vol.getCell(1).faces()[4]).size(), 2);
+        ASSERT_EQUAL(vol.getCellIndex<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 7}), 0);
+        ASSERT_EQUAL(vol.getCellIndex<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 8}), vol.kInvalidIndex);
+
+        ASSERT_TRUE(vol.getVertAttributes().addAttribute<int>("id"));
+        for (int i = 0; i < 12; ++i) {
+            vol.getVertAttributes().getAttribute<int>("id")->setElement(i, i);
+        }
+        ASSERT_TRUE(vol.getCellAttributes().addAttribute<int>("testdata"));
+        vol.getCellAttributes().getAttribute<int>("testdata")->setElement(0, 0);
+        vol.getCellAttributes().getAttribute<int>("testdata")->setElement(1, 1);
+        vol.getCellAttributes().getAttribute<int>("testdata")->setElement(2, 2);
+
+        // R移除体
+        vol.removeCell(0);
+        ASSERT_EQUAL(vol.numVerts(), 12);
+        ASSERT_EQUAL(vol.numEdges(), 19);
+        ASSERT_EQUAL(vol.numFaces(), 13);
+        ASSERT_EQUAL(vol.numCells(), 3);
+        ASSERT_TRUE(vol.isCellRemoved(0));
+        vol.removeIsolatedVerts();
+        ASSERT_EQUAL(vol.numVerts(), 10);
+        ASSERT_EQUAL(vol.numEdges(), 19);
+        ASSERT_EQUAL(vol.numFaces(), 13);
+        ASSERT_EQUAL(vol.numCells(), 3);
+        ASSERT_TRUE(vol.isVertRemoved(0));
+
+        vol.defragment();
+        ASSERT_FALSE(vol.isVertRemoved(0));
+        ASSERT_FALSE(vol.isCellRemoved(0));
+        ASSERT_EQUAL(vol.getVertAttributes().getAttribute<int>("id")->getElement(0), 1);
+        ASSERT_EQUAL(vol.getCellAttributes().getAttribute<int>("testdata")->getElement(0), 1);
+    });
+
+    suite.addTestCase("Basic Ability Test 2", []() {
+        VolumeMesh vol;
+        ASSERT_EQUAL(vol.addVert({0, 0, 0}), 0);
+        ASSERT_EQUAL(vol.addVert({1, 0, 0}), 1);
+        ASSERT_EQUAL(vol.addVert({1, 1, 0}), 2);
+        ASSERT_EQUAL(vol.addVert({0, 1, 0}), 3);
+        ASSERT_EQUAL(vol.addVert({0, 0, 1}), 4);
+        ASSERT_EQUAL(vol.addVert({1, 0, 1}), 5);
+        ASSERT_EQUAL(vol.addVert({1, 1, 1}), 6);
+        ASSERT_EQUAL(vol.addVert({0, 1, 1}), 7);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 7}), 0);
+        ASSERT_EQUAL(vol.addVert({2, 0, 0}), 8);
+        ASSERT_EQUAL(vol.addCell<CellType::CELL_TET>({1, 2, 5, 8}), 1);
+
+        ASSERT_EQUAL(vol.numVerts(), 9);
+        ASSERT_EQUAL(vol.numEdges(), 16);
+        ASSERT_EQUAL(vol.numFaces(), 10);
+        ASSERT_EQUAL(vol.numCells(), 2);
+
+        ASSERT_EQUAL(vol.vertEdges(1).size(), 4);
+        ASSERT_EQUAL(vol.vertEdges(5).size(), 5);
+        ASSERT_EQUAL(vol.vertFaces(1).size(), 6);
+        ASSERT_EQUAL(vol.vertCells(1).size(), 2);
+        ASSERT_EQUAL(vol.edgeFaces(5).size(), 4);
+        ASSERT_EQUAL(vol.edgeFaces(1).size(), 4);
+        ASSERT_EQUAL(vol.edgeFaces(12).size(), 2);
+        ASSERT_EQUAL(vol.edgeCells(0).size(), 1);
+        ASSERT_EQUAL(vol.edgeCells(1).size(), 2);
+        ASSERT_EQUAL(vol.edgeCells(5).size(), 2);
+        ASSERT_EQUAL(vol.edgeCells(12).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(0).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(4).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(5).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(6).size(), 1);
+        ASSERT_EQUAL(vol.faceCells(7).size(), 1);
+    });
+
+    suite.addTestCase("Basic Ability Test 3", []() {
+        VolumeMesh vol;
+        ASSERT_EQUAL(vol.addVert({0, 0, 0}), 0);
+        ASSERT_EQUAL(vol.addVert({1, 0, 0}), 1);
+        ASSERT_EQUAL(vol.addVert({1, 1, 0}), 2);
+        ASSERT_EQUAL(vol.addVert({0, 1, 0}), 3);
+        ASSERT_EQUAL(vol.addVert({0, 0, 1}), 4);
+        ASSERT_EQUAL(vol.addVert({1, 0, 1}), 5);
+        ASSERT_EQUAL(vol.addVert({1, 1, 1}), 6);
+        ASSERT_EQUAL(vol.addVert({0, 1, 1}), 7);
+        ASSERT_EQUAL(vol.addVert({0.5, 0.5, 2}), 8);
+
+        vector<size_t> verts, edges, faces;
+        for (int i = 0; i < 9; ++i) {
+            verts.push_back(i);
+        }
+        edges.push_back(vol.addEdge(0, 1));
+        edges.push_back(vol.addEdge(1, 2));
+        edges.push_back(vol.addEdge(2, 3));
+        edges.push_back(vol.addEdge(3, 0));
+        edges.push_back(vol.addEdge(4, 5));
+        edges.push_back(vol.addEdge(5, 6));
+        edges.push_back(vol.addEdge(6, 7));
+        edges.push_back(vol.addEdge(7, 4));
+        edges.push_back(vol.addEdge(0, 4));
+        edges.push_back(vol.addEdge(1, 5));
+        edges.push_back(vol.addEdge(2, 6));
+        edges.push_back(vol.addEdge(3, 7));
+        edges.push_back(vol.addEdge(4, 8));
+        edges.push_back(vol.addEdge(5, 8));
+        edges.push_back(vol.addEdge(6, 8));
+        edges.push_back(vol.addEdge(7, 8));
+        faces.push_back(vol.addFace<FaceType::FACE_QUAD>({3, 2, 1, 0}));
+        faces.push_back(vol.addFace<FaceType::FACE_QUAD>({5, 4, 0, 1}));
+        faces.push_back(vol.addFace<FaceType::FACE_QUAD>({7, 6, 2, 3}));
+        faces.push_back(vol.addFace<FaceType::FACE_QUAD>({4, 7, 3, 0}));
+        faces.push_back(vol.addFace<FaceType::FACE_QUAD>({6, 5, 1, 2}));
+        faces.push_back(vol.addFace<FaceType::FACE_TRI>({4, 5, 8}));
+        faces.push_back(vol.addFace<FaceType::FACE_TRI>({5, 6, 8}));
+        faces.push_back(vol.addFace<FaceType::FACE_TRI>({6, 7, 8}));
+        faces.push_back(vol.addFace<FaceType::FACE_TRI>({7, 4, 8}));
+
+        vol.addCell<CellType::CELL_POLYHEDRON>(verts.data(), verts.size(), edges.data(), edges.size(), faces.data(), faces.size());
+
+        ASSERT_EQUAL(vol.numVerts(), 9);
+        ASSERT_EQUAL(vol.numEdges(), 16);
+        ASSERT_EQUAL(vol.numFaces(), 9);
+        ASSERT_EQUAL(vol.numCells(), 1);
+        ASSERT_EQUAL(
+            vol.getCellIndex<CellType::CELL_POLYHEDRON>(verts.data(), verts.size(), edges.data(), edges.size(), faces.data(), faces.size()),
+            0);
+
+        hmesh::io::SaveObj(ROOT_PATH "/result/c2.obj", vol);
+    });
+    suite.addTestCase("Basic Ability Test 4", []() {
+        VolumeMesh v1, v2;
+        v1.copyFrom(v2);
+    });
+    suite.addTestCase("Test IO(Obj)", []() {
+        VolumeMesh vol;
+        hmesh::io::LoadMesh(ROOT_PATH "/data/tet.mesh", vol);
+        hmesh::io::SaveMesh(ROOT_PATH "/result/tet.mesh", vol);
+
+        // 遍历顶点索引
+        {
+            auto it = vol.vertIndexBegin();
+            for (auto id : vol.vertIndices()) {
+                ASSERT_EQUAL(id, *it);
+                ++it;
+            }
+            ASSERT_TRUE(it == vol.vertIndexEnd());
+        }
+        // 遍历边索引
+        {
+            auto it = vol.edgeIndexBegin();
+            for (auto id : vol.edgeIndices()) {
+                ASSERT_EQUAL(id, *it);
+                ++it;
+            }
+            ASSERT_TRUE(it == vol.edgeIndexEnd());
+        }
+        // 遍历面索引
+        {
+            auto it = vol.faceIndexBegin();
+            for (auto id : vol.faceIndices()) {
+                ASSERT_EQUAL(id, *it);
+                ++it;
+            }
+            ASSERT_TRUE(it == vol.faceIndexEnd());
+        }
+        //遍历体索引
+        {
+            auto it = vol.cellIndexBegin();
+            for (auto id : vol.cellIndices()) {
+                ASSERT_EQUAL(id, *it);
+                ++it;
+            }
+            ASSERT_TRUE(it == vol.cellIndexEnd());
+        }
+    });
+
+    suite.run();
+}

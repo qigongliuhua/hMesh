@@ -1,0 +1,14 @@
+﻿# 忽略全部
+/*
+
+# 需要保留的项
+!/docs/
+!/data/
+!/test/
+
+!/.git*
+!/CMake*
+!/*.h
+!/*.txt
+!/*.md
+!/.clang-format
