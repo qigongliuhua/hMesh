@@ -712,7 +712,8 @@ class IndexIteratorBase {
     static_assert(std::is_integral_v<Index>, "Index must be an integer type");
 
    public:
-    IndexIteratorBase(MeshType *mesh, Index start, Index (MeshType::*next)(Index) const) : mesh_(mesh), current_(start), nextFunc_(next) {}
+    IndexIteratorBase(const MeshType *mesh, Index start, Index (MeshType::*next)(Index) const)
+        : mesh_(mesh), current_(start), nextFunc_(next) {}
     Index operator*() const { return current_; }
     IndexIteratorBase &operator++() {
         current_ = (mesh_->*nextFunc_)(current_);
@@ -722,7 +723,7 @@ class IndexIteratorBase {
     bool operator!=(const IndexIteratorBase &other) const { return current_ != other.current_; }
 
    private:
-    MeshType *mesh_;
+    const MeshType *mesh_;
     Index current_;
     Index (MeshType::*nextFunc_)(Index) const;
 };
@@ -1276,47 +1277,47 @@ class SurfaceMesh {
      * @brief 获取顶点索引迭代器的起始位置
      * @return 返回指向第一个有效顶点索引的迭代器
      */
-    IndexIterator vertIndexBegin() { return IndexIterator(this, findFirstValidVert(), &SurfaceMesh::findNextValidVert); }
+    IndexIterator vertIndexBegin() const { return IndexIterator(this, findFirstValidVert(), &SurfaceMesh::findNextValidVert); }
     /**
      * @brief 获取顶点索引迭代器的结束位置
      * @return 返回顶点索引迭代器的结束标记
      */
-    IndexIterator vertIndexEnd() { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidVert); }
+    IndexIterator vertIndexEnd() const { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidVert); }
     /**
      * @brief 获取顶点索引的范围迭代器
      * @return 返回包含所有有效顶点索引的范围迭代器
      */
-    IndexIteratorRange vertIndices() { return {vertIndexBegin(), vertIndexEnd()}; }
+    IndexIteratorRange vertIndices() const { return {vertIndexBegin(), vertIndexEnd()}; }
     /**
      * @brief 获取边索引迭代器的起始位置
      * @return 返回指向第一个有效边索引的迭代器
      */
-    IndexIterator edgeIndexBegin() { return IndexIterator(this, findFirstValidEdge(), &SurfaceMesh::findNextValidEdge); }
+    IndexIterator edgeIndexBegin() const { return IndexIterator(this, findFirstValidEdge(), &SurfaceMesh::findNextValidEdge); }
     /**
      * @brief 获取边索引迭代器的结束位置
      * @return 返回边索引迭代器的结束标记
      */
-    IndexIterator edgeIndexEnd() { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidEdge); }
+    IndexIterator edgeIndexEnd() const { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidEdge); }
     /**
      * @brief 获取边索引的范围迭代器
      * @return 返回包含所有有效边索引的范围迭代器
      */
-    IndexIteratorRange edgeIndices() { return {edgeIndexBegin(), edgeIndexEnd()}; }
+    IndexIteratorRange edgeIndices() const { return {edgeIndexBegin(), edgeIndexEnd()}; }
     /**
      * @brief 获取面索引迭代器的起始位置
      * @return 返回指向第一个有效面索引的迭代器
      */
-    IndexIterator faceIndexBegin() { return IndexIterator(this, findFirstValidFace(), &SurfaceMesh::findNextValidFace); }
+    IndexIterator faceIndexBegin() const { return IndexIterator(this, findFirstValidFace(), &SurfaceMesh::findNextValidFace); }
     /**
      * @brief 获取面索引迭代器的结束位置
      * @return 返回面索引迭代器的结束标记
      */
-    IndexIterator faceIndexEnd() { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidFace); }
+    IndexIterator faceIndexEnd() const { return IndexIterator(this, kInvalidIndex, &SurfaceMesh::findNextValidFace); }
     /**
      * @brief 获取面索引的范围迭代器
      * @return 返回包含所有有效面索引的范围迭代器
      */
-    IndexIteratorRange faceIndices() { return {faceIndexBegin(), faceIndexEnd()}; }
+    IndexIteratorRange faceIndices() const { return {faceIndexBegin(), faceIndexEnd()}; }
 
     /**
      * @brief 获取顶点属性管理器
@@ -1673,17 +1674,17 @@ class VolumeMesh : public SurfaceMesh<Index, VertexContainer, AttributeName> {
      * @brief 获取单元索引迭代器的起始位置
      * @return 返回指向第一个有效单元索引的迭代器
      */
-    IndexIterator cellIndexBegin() { return IndexIterator(this, findFirstValidCell(), &VolumeMesh::findNextValidCell); }
+    IndexIterator cellIndexBegin() const { return IndexIterator(this, findFirstValidCell(), &VolumeMesh::findNextValidCell); }
     /**
      * @brief 获取单元索引迭代器的结束位置
      * @return 返回单元索引迭代器的结束标记
      */
-    IndexIterator cellIndexEnd() { return IndexIterator(this, kInvalidIndex, &VolumeMesh::findNextValidCell); }
+    IndexIterator cellIndexEnd() const { return IndexIterator(this, kInvalidIndex, &VolumeMesh::findNextValidCell); }
     /**
      * @brief 获取单元索引的范围迭代器
      * @return 返回包含所有有效单元索引的范围迭代器
      */
-    IndexIteratorRange cellIndices() { return {cellIndexBegin(), cellIndexEnd()}; }
+    IndexIteratorRange cellIndices() const { return {cellIndexBegin(), cellIndexEnd()}; }
 
     /**
      * @brief 获取单元属性管理器
