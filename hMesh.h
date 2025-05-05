@@ -3138,6 +3138,9 @@ void LoadObj(const std::string &filename, SurfaceMesh<Index, VertexContainer, At
  */
 template <typename Index, typename VertexContainer, typename AttributeName>
 void SaveObj(const std::string &filename, const SurfaceMesh<Index, VertexContainer, AttributeName> &mesh, int precision = 6) {
+    if (!mesh.isIndexContinuous()) {
+        throw std::runtime_error("The index needs to be continuous. This problem can be solved by calling 'defragment'.");
+    }
     std::ofstream f(filename);
     if (!f.is_open()) {
         throw std::runtime_error("Failed to open file: " + filename);
@@ -3255,6 +3258,9 @@ void LoadMesh(const std::string &filename, VolumeMesh<Index, VertexContainer, At
  */
 template <typename Index, typename VertexContainer, typename AttributeName>
 void SaveMesh(const std::string &filename, const VolumeMesh<Index, VertexContainer, AttributeName> &m, int precision = 6) {
+    if (!m.isIndexContinuous()) {
+        throw std::runtime_error("The index needs to be continuous. This problem can be solved by calling 'defragment'.");
+    }
     std::ofstream f(filename);
     if (!f.is_open()) {
         throw std::runtime_error("Failed to open file: " + filename);
