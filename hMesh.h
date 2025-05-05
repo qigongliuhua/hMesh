@@ -1718,7 +1718,9 @@ class VolumeMesh : public SurfaceMesh<Index, VertexContainer, AttributeName> {
      * @brief 执行网格碎片整理操作（优化内存布局，可使索引连续）
      */
     void defragment() {
-        SuperClass::defragment();
+        defragmentVertices();
+        defragmentEdges();
+        defragmentFaces();
         defragmentCells();
     }
 
@@ -2594,7 +2596,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::defragmentVertices() {
     }
     vertAttributes_.onResize(newIndex);
 
-    updateVertexReferencesAfterDefragment(newIndices, newVerts.size());
+    updateVertexReferencesAfterDefragment(newIndices);
 
     verts_ = std::move(newVerts);
     vertToEdges_ = std::move(newVertToEdges);
@@ -2620,7 +2622,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::defragmentEdges() {
     }
     edgeAttributes_.onResize(newIndex);
 
-    updateEdgeReferencesAfterDefragment(newIndices, newEdges.size());
+    updateEdgeReferencesAfterDefragment(newIndices);
 
     edges_ = std::move(newEdges);
     edgeToFaces_ = std::move(newEdgeToFaces);
@@ -2644,7 +2646,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::defragmentFaces() {
     }
     faceAttributes_.onResize(newIndex);
 
-    updateFaceReferencesAfterDefragment(newIndices, newFaces.size());
+    updateFaceReferencesAfterDefragment(newIndices);
 
     faces_ = std::move(newFaces);
     faceToCells_ = std::move(newFaceToCells);
@@ -2672,7 +2674,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::defragmentCells() {
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 void VolumeMesh<Index, VertexContainer, AttributeName>::updateVertexReferencesAfterDefragment(const std::vector<Index> &newIndices) {
-    SuperClass::updateReferencesAfterDefragment(newIndices, newSize);
+    SuperClass::updateReferencesAfterDefragment(newIndices);
     for (auto &cell : cells_) {
         if (cell) {
             for (size_t i = 0; i < cell->numVerts(); ++i) {
@@ -2686,7 +2688,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::updateVertexReferencesAf
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 void VolumeMesh<Index, VertexContainer, AttributeName>::updateEdgeReferencesAfterDefragment(const std::vector<Index> &newIndices) {
-    SuperClass::updateEdgeReferencesAfterDefragment(newIndices, newSize);
+    SuperClass::updateEdgeReferencesAfterDefragment(newIndices);
     for (auto &cell : cells_) {
         if (cell) {
             for (size_t i = 0; i < cell->numEdges(); ++i) {
@@ -2700,7 +2702,7 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::updateEdgeReferencesAfte
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 void VolumeMesh<Index, VertexContainer, AttributeName>::updateFaceReferencesAfterDefragment(const std::vector<Index> &newIndices) {
-    SuperClass::updateFaceReferencesAfterDefragment(newIndices, newSize);
+    SuperClass::updateFaceReferencesAfterDefragment(newIndices);
     for (auto &cell : cells_) {
         if (cell) {
             for (size_t i = 0; i < cell->numFaces(); ++i) {
