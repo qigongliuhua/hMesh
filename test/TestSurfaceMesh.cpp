@@ -137,8 +137,7 @@ void TestSurfaceMesh() {
     suite.addTestCase("Basic Ability Test 2", []() {
         SurfaceMesh mesh;
 
-        vector<array<double, 3>> verts = {{0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {3, 0, 0},
-                                          {0, 1, 0}, {1, 2, 0}, {2, 1, 0}, {3, 1, 0}};
+        vector<array<double, 3>> verts = {{0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {3, 0, 0}, {0, 1, 0}, {1, 2, 0}, {2, 1, 0}, {3, 1, 0}};
         vector<vector<size_t>> faces = {{0, 1, 6, 5, 4}, {1, 2, 6}, {2, 3, 7, 6}};
 
         for (const auto& p : verts) {
@@ -183,23 +182,17 @@ void TestSurfaceMesh() {
         ASSERT_EQUAL(mesh.edgeFaces(1).size(), 1);
         ASSERT_EQUAL(mesh.vertEdges(0).size(), 0);
         ASSERT_EQUAL(mesh.vertFaces(0).size(), 0);
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[0], 1);
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(2)[0], 2);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[0], 1);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(2)[0], 2);
 
         // 整理碎片
         mesh.defragment();
         ASSERT_TRUE(mesh.isIndexContinuous());
         ASSERT_FALSE(mesh.isFaceRemoved(0));
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(0)[0], 1);
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(0)[1], 11);
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[0], 2);
-        ASSERT_EQUAL(
-            mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[1], 12);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(0)[0], 1);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(0)[1], 11);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[0], 2);
+        ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata")->getElement(1)[1], 12);
 
         mesh.clear();
         ASSERT_TRUE(mesh.getFaceAttributes().hasAttribute("testdata"));
@@ -230,6 +223,95 @@ void TestSurfaceMesh() {
         m2.copyFrom(m1);
     });
 
+    suite.addTestCase("TriangleMeshOperations Test 1", []() {
+        SurfaceMesh m;
+        m.addVert({0, 0, 0});
+        m.addVert({1, 0, 0});
+        m.addVert({2, 0, 0});
+        m.addVert({0, 1, 0});
+        m.addVert({1, 1, 0});
+        m.addVert({2, 1, 0});
+        m.addVert({1, 2, 0});
+        m.addEdge(0, 1);
+        m.addEdge(1, 2);
+        m.addEdge(0, 3);
+        m.addEdge(1, 3);
+        m.addEdge(1, 4);
+        m.addEdge(2, 4);
+        m.addEdge(2, 5);
+        m.addEdge(3, 4);
+        m.addEdge(4, 5);
+        m.addEdge(3, 6);
+        m.addEdge(4, 6);
+        m.addEdge(5, 6);
+        m.addFace<FaceType::FACE_TRI>({0, 1, 3});
+        m.addFace<FaceType::FACE_TRI>({1, 4, 3});
+        m.addFace<FaceType::FACE_TRI>({1, 2, 4});
+        m.addFace<FaceType::FACE_TRI>({2, 5, 4});
+        m.addFace<FaceType::FACE_TRI>({3, 4, 6});
+        m.addFace<FaceType::FACE_TRI>({4, 5, 6});
+        hmesh::io::SaveObj(ROOT_PATH "/result/before_collapseEdge.obj", m);
+
+        size_t newVid;
+        hmesh::TriangleMeshOperations::collapseEdge(m, (size_t)4, newVid);
+
+        ASSERT_EQUAL(newVid, 7);
+        ASSERT_EQUAL(m.numVerts(), 8);
+        ASSERT_EQUAL(m.numEdges(), 9);
+        ASSERT_EQUAL(m.numFaces(), 4);
+        ASSERT_TRUE(m.isEdgeRemoved(4));
+        ASSERT_TRUE(m.isEdgeRemoved(3));
+        ASSERT_TRUE(m.isEdgeRemoved(7));
+        ASSERT_TRUE(m.isEdgeRemoved(1));
+        ASSERT_TRUE(m.isEdgeRemoved(5));
+        ASSERT_TRUE(m.isFaceRemoved(1));
+        ASSERT_TRUE(m.isFaceRemoved(2));
+        ASSERT_FALSE(m.isEdgeRemoved(12));
+        ASSERT_FALSE(m.isEdgeRemoved(13));
+        ASSERT_EQUAL(m.vertEdges(7).size(), 5);
+        ASSERT_EQUAL(m.vertEdges(3).size(), 3);
+        ASSERT_EQUAL(m.vertEdges(5).size(), 3);
+        ASSERT_EQUAL(m.vertEdges(6).size(), 3);
+        ASSERT_EQUAL(m.vertFaces(7).size(), 4);
+        ASSERT_EQUAL(m.vertFaces(3).size(), 2);
+        ASSERT_EQUAL(m.vertFaces(5).size(), 2);
+        ASSERT_EQUAL(m.edgeFaces(12).size(), 2);
+        ASSERT_EQUAL(m.edgeFaces(13).size(), 1);
+        ASSERT_EQUAL(m.edgeFaces(8).size(), 2);
+        ASSERT_EQUAL(m.edgeFaces(0).size(), 1);
+        ASSERT_EQUAL(m.edgeFaces(12).count(0), 1);
+        ASSERT_EQUAL(m.edgeFaces(12).count(4), 1);
+        ASSERT_EQUAL(m.edgeFaces(8).count(5), 1);
+        ASSERT_EQUAL(m.edgeFaces(8).count(3), 1);
+        ASSERT_EQUAL(m.edgeFaces(13).count(3), 1);
+
+
+        m.defragment();
+        hmesh::io::SaveObj(ROOT_PATH "/result/after_collapseEdge.obj", m);
+    });
+    suite.addTestCase("TriangleMeshOperations Test 2", []() {
+        SurfaceMesh m;
+        m.addVert({0, 0, 0});
+        m.addVert({1, 0, 0});
+        m.addVert({0, 1, 0});
+        m.addVert({1, 1, 0});
+        m.addEdge(0, 1);
+        m.addEdge(1, 2);
+        m.addEdge(2, 0);
+        m.addEdge(2, 0);
+        m.addEdge(1, 3);
+        m.addEdge(2, 3);
+        m.addFace<FaceType::FACE_TRI>({0, 1, 2});
+        m.addFace<FaceType::FACE_TRI>({1, 2, 3});
+
+        size_t newVid;
+        hmesh::TriangleMeshOperations::collapseEdge(m, (size_t)1, newVid);
+
+        ASSERT_EQUAL(m.numVerts(), 5);
+        ASSERT_EQUAL(m.numEdges(), 0);
+        ASSERT_EQUAL(m.numFaces(), 0);
+
+    });
     suite.addTestCase("Test IO(Obj)", []() {
         SurfaceMesh surf;
         hmesh::io::LoadObj(ROOT_PATH "/data/tri.obj", surf);

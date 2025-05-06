@@ -199,6 +199,103 @@ void TestVolumeMesh() {
         VolumeMesh v1, v2;
         v1.copyFrom(v2);
     });
+
+    suite.addTestCase("TriangleMeshOperations Test 1", []() {
+        VolumeMesh m;
+
+        m.addVert({0, 0, 0});
+        m.addVert({1, 0, 0});
+        m.addVert({0, 1, 0});
+        m.addVert({0, 0, 1});
+        m.addVert({0, -1, 0});
+        m.addEdge(0, 1);
+        m.addCell<CellType::CELL_TET>({0, 1, 2, 3});
+        m.addCell<CellType::CELL_TET>({1, 0, 4, 3});
+
+        size_t newVid;
+        hmesh::TetrahedralMeshOperations::collapseEdge(m, (size_t)0, newVid);
+
+        ASSERT_EQUAL(m.numVerts(), 6);
+        ASSERT_EQUAL(m.numEdges(), 0);
+        ASSERT_EQUAL(m.numFaces(), 0);
+        ASSERT_EQUAL(m.numCells(), 0);
+
+        m.defragment();
+    });
+
+    suite.addTestCase("TriangleMeshOperations Test 2", []() {
+        VolumeMesh m;
+
+        m.addVert({0, 0, 0});
+        m.addVert({1, 0, 0});
+        m.addVert({0, 1, 0});
+        m.addVert({0, 0, 1});
+        m.addVert({0, -1, 0});
+        m.addVert({1, -1, 0});
+        m.addVert({-1, -1, 0});
+        m.addEdge(0, 1);
+        m.addEdge(0, 4);
+        m.addCell<CellType::CELL_TET>({0, 1, 2, 3});
+        m.addCell<CellType::CELL_TET>({1, 0, 4, 3});
+        m.addCell<CellType::CELL_TET>({4, 5, 1, 3});
+        m.addCell<CellType::CELL_TET>({6, 4, 0, 3});
+
+        hmesh::io::SaveMesh(ROOT_PATH "/result/before_collapseEdge.mesh", m);
+        size_t newVid;
+        hmesh::TetrahedralMeshOperations::collapseEdge(m, (size_t)0, newVid);
+
+        ASSERT_EQUAL(newVid, 7);
+        ASSERT_EQUAL(m.numVerts(), 8);
+        ASSERT_EQUAL(m.numEdges(), 9);
+        ASSERT_EQUAL(m.numFaces(), 7);
+        ASSERT_EQUAL(m.numCells(), 2);
+        ASSERT_EQUAL(m.vertEdges(7).size(), 4);
+        ASSERT_EQUAL(m.vertEdges(3).size(), 4);
+        ASSERT_EQUAL(m.vertEdges(4).size(), 4);
+        ASSERT_EQUAL(m.vertEdges(5).size(), 3);
+        ASSERT_EQUAL(m.vertEdges(6).size(), 3);
+        ASSERT_EQUAL(m.vertFaces(7).size(), 5);
+        ASSERT_EQUAL(m.vertFaces(3).size(), 5);
+        ASSERT_EQUAL(m.vertFaces(4).size(), 5);
+        ASSERT_EQUAL(m.vertCells(5).size(), 1);
+        ASSERT_EQUAL(m.vertCells(7).size(), 2);
+        ASSERT_TRUE(m.isEdgeRemoved(0));
+        ASSERT_TRUE(m.isEdgeRemoved(1));
+        ASSERT_TRUE(m.isFaceRemoved(0));
+        ASSERT_TRUE(m.isFaceRemoved(1));
+        ASSERT_TRUE(m.isFaceRemoved(2));
+        ASSERT_TRUE(m.isFaceRemoved(3));
+        size_t maxFaceToCells = 0;
+        for (size_t fid : m.faceIndices()) {
+            maxFaceToCells = max(maxFaceToCells, m.faceCells(fid).size());
+        }
+        ASSERT_EQUAL(maxFaceToCells, 2);
+
+        size_t maxEdgeToFaces = 0;
+        size_t maxEdgeToCells = 0;
+        for (size_t eid : m.edgeIndices()) {
+            maxEdgeToFaces = max(maxEdgeToFaces, m.edgeFaces(eid).size());
+            maxEdgeToCells = max(maxEdgeToCells, m.edgeCells(eid).size());
+        }
+        ASSERT_EQUAL(maxEdgeToFaces, 3);
+        ASSERT_EQUAL(maxEdgeToCells, 2);
+
+        size_t maxVertToEdges = 0;
+        size_t maxVertToFaces = 0;
+        size_t maxVertToCells = 0;
+        for (size_t vid : m.vertIndices()) {
+            maxVertToEdges = max(maxVertToEdges, m.vertEdges(vid).size());
+            maxVertToFaces = max(maxVertToFaces, m.vertFaces(vid).size());
+            maxVertToCells = max(maxVertToCells, m.vertCells(vid).size());
+        }
+        ASSERT_EQUAL(maxVertToEdges, 4);
+        ASSERT_EQUAL(maxVertToFaces, 5);
+        ASSERT_EQUAL(maxVertToCells, 2);
+
+        m.defragment();
+        hmesh::io::SaveMesh(ROOT_PATH "/result/after_collapseEdge.mesh", m);
+    });
+
     suite.addTestCase("Test IO(Obj)", []() {
         VolumeMesh vol;
         hmesh::io::LoadMesh(ROOT_PATH "/data/tet.mesh", vol);
@@ -231,7 +328,7 @@ void TestVolumeMesh() {
             }
             ASSERT_TRUE(it == vol.faceIndexEnd());
         }
-        //遍历体索引
+        // 遍历体索引
         {
             auto it = vol.cellIndexBegin();
             for (auto id : vol.cellIndices()) {

@@ -1506,6 +1506,8 @@ class SurfaceMesh {
     Index findNextValidFace(Index current) const;
 
    protected:
+    friend class TriangleMeshOperations;
+
     std::vector<VertexContainer> verts_;  // 顶点数据存储
     std::vector<EdgeContainer> edges_;    // 边数据存储
     std::vector<FacePtr> faces_;          // 面数据存储
@@ -1877,6 +1879,8 @@ class VolumeMesh : public SurfaceMesh<Index, VertexContainer, AttributeName> {
     Index findNextValidCell(Index current) const;
 
    protected:
+    friend class TetrahedralMeshOperations;
+
     std::vector<CellPtr> cells_;                // 体数据存储
     AttributeManager cellAttributes_;           // 体属性
     std::vector<std::set<Index>> vertToCells_;  // 顶点到体映射
@@ -2944,6 +2948,390 @@ void VolumeMesh<Index, VertexContainer, AttributeName>::autoGenerateFaces(CellPt
         throw std::runtime_error("Polyhedrons cannot generate faces automatically");
     }
 }
+
+/**
+ * @brief 三角形网格操作工具类
+ */
+class TriangleMeshOperations {
+   public:
+    /**
+     * @brief 边折叠操作（将一条边收缩为一个顶点）
+     * @param mesh 输入网格
+     * @param eid 要折叠的边ID
+     * @param newVid [输出] 新生成的顶点ID
+     */
+    template <typename Index, typename VertexContainer, typename AttributeName>
+    static void collapseEdge(SurfaceMesh<Index, VertexContainer, AttributeName> &mesh, Index eid, Index &newVid) {
+        using MeshType = SurfaceMesh<Index, VertexContainer, AttributeName>;
+        constexpr Index kInvalidIndex = MeshType::kInvalidIndex;
+
+        // === 1. 输入验证 ===
+        if (mesh.isEdgeRemoved(eid)) {
+            throw std::runtime_error("Invalid edge index or edge has been removed");
+        }
+        const auto &edge = mesh.getEdge(eid);
+        const Index v0 = edge.verts()[0], v1 = edge.verts()[1];
+        if (mesh.isVertRemoved(v0) || mesh.isVertRemoved(v1)) {
+            throw std::runtime_error("Invalid vertex index or vertex has been removed");
+        }
+
+        // === 2. 创建新顶点（边中点） ===
+        VertexContainer newVert;
+        const auto &vert0 = mesh.getVert(v0);
+        const auto &vert1 = mesh.getVert(v1);
+        for (int i = 0; i < 3; ++i) {
+            newVert[i] = 0.5 * (vert0[i] + vert1[i]);
+        }
+        newVid = mesh.addVert(newVert);
+
+        // === 3. 准备待删除和替换的元素 ===
+        std::unordered_set<Index> facesToRemove(mesh.edgeFaces(eid).begin(), mesh.edgeFaces(eid).end());
+        std::unordered_set<Index> edgesToRemove{eid};
+        std::unordered_map<Index, Index> edgeReplacements;
+
+        // === 4. 处理关联面片 ===
+        for (Index fid : facesToRemove) {
+            const auto &face = mesh.getFace(fid);
+
+            // 4.1 验证三角形有效性
+            if (face.type() != FaceType::FACE_TRI) {
+                throw std::runtime_error("Non-triangle face found in supposedly triangle mesh");
+            }
+
+            // 查找第三个顶点
+            Index v2 = kInvalidIndex;
+            for (size_t i = 0; i < 3; ++i) {
+                const Index vid = face.verts()[i];
+                if (vid != v0 && vid != v1) {
+                    v2 = vid;
+                    break;
+                }
+            }
+            if (v2 == kInvalidIndex) {
+                throw std::runtime_error("Degenerate triangle face found");
+            }
+
+            // 4.2 处理关联边
+            Index e1 = mesh.getEdgeIndex(v0, v2);
+            Index e2 = mesh.getEdgeIndex(v1, v2);
+            if (e1 == kInvalidIndex || e2 == kInvalidIndex) {
+                throw std::runtime_error("Missing adjacent edges in triangle face");
+            }
+            edgesToRemove.insert({e1, e2});
+
+            // 创建新边并记录替换关系
+            Index newEdge = mesh.addEdge(v2, newVid);
+            edgeReplacements[e1] = newEdge;
+            edgeReplacements[e2] = newEdge;
+        }
+
+        // === 5. 更新顶点连接关系 ===
+        for (Index oldVid : {v0, v1}) {
+            // 5.1 更新面片连接
+            for (Index fid : mesh.vertFaces(oldVid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    auto &face = *mesh.faces_[fid];
+                    // 更新顶点引用
+                    for (size_t i = 0; i < face.numVerts(); ++i) {
+                        if (face.verts()[i] == oldVid) {
+                            face.verts()[i] = newVid;
+                        }
+                    }
+                    // 更新边引用
+                    for (size_t i = 0; i < face.numEdges(); ++i) {
+                        auto it = edgeReplacements.find(face.edges()[i]);
+                        if (it != edgeReplacements.end()) {
+                            face.edges()[i] = it->second;
+                        }
+                    }
+                }
+            }
+
+            // 5.2 更新边连接
+            for (Index eid : mesh.vertEdges(oldVid)) {
+                if (edgesToRemove.count(eid) == 0) {
+                    auto &edge = mesh.edges_[eid];
+                    if (edge.verts()[0] == oldVid) edge.verts()[0] = newVid;
+                    if (edge.verts()[1] == oldVid) edge.verts()[1] = newVid;
+                }
+            }
+        }
+
+        // === 6. 更新拓扑关系 ===
+        for (Index oldVid : {v0, v1}) {
+            // 6.1 更新顶点->边映射
+            for (Index eid : mesh.vertEdges(oldVid)) {
+                if (edgesToRemove.count(eid) == 0) {
+                    mesh.vertToEdges_[newVid].insert(eid);
+                }
+            }
+            mesh.vertToEdges_[oldVid].clear();
+
+            // 6.2 更新顶点->面映射
+            for (Index fid : mesh.vertFaces(oldVid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    mesh.vertToFaces_[newVid].insert(fid);
+                }
+            }
+            mesh.vertToFaces_[oldVid].clear();
+        };
+
+        // 6.3 更新边->面映射
+        for (const auto [oldEid, newEid] : edgeReplacements) {
+            for (Index fid : mesh.edgeFaces(oldEid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    mesh.edgeToFaces_[newEid].insert(fid);
+                }
+            }
+            mesh.edgeToFaces_[oldEid].clear();
+        }
+
+        // === 7. 清理无效元素 ===
+        for (Index fid : facesToRemove) mesh.removeFace(fid);
+        for (Index eid : edgesToRemove) mesh.removeEdge(eid);
+
+        // 清理孤立的边
+        for (const auto [oldEid, newEid] : edgeReplacements) {
+            if (!mesh.isEdgeRemoved(newEid) && mesh.edgeFaces(newEid).empty()) {
+                mesh.removeEdge(newEid);
+            }
+        }
+    }
+};
+
+/**
+ * @brief 四面体网格操作工具类
+ */
+class TetrahedralMeshOperations {
+   public:
+    /**
+     * @brief 边折叠操作（将一条边收缩为一个顶点）
+     * @param mesh 输入网格
+     * @param eid 要折叠的边ID
+     * @param newVid [输出] 新生成的顶点ID
+     */
+    template <typename Index, typename VertexContainer, typename AttributeName>
+    static void collapseEdge(VolumeMesh<Index, VertexContainer, AttributeName> &mesh, Index eid, Index &newVid) {
+        using MeshType = VolumeMesh<Index, VertexContainer, AttributeName>;
+        constexpr Index kInvalidIndex = MeshType::kInvalidIndex;
+
+        // === 1. 输入验证 ===
+        if (mesh.isEdgeRemoved(eid)) throw std::runtime_error("Edge already removed");
+        const auto &edge = mesh.getEdge(eid);
+        const Index v0 = edge.verts()[0], v1 = edge.verts()[1];
+        if (mesh.isVertRemoved(v0) || mesh.isVertRemoved(v1)) {
+            throw std::runtime_error("Vertices already removed");
+        }
+
+        // === 2. 创建新顶点（边中点） ===
+        VertexContainer newVert;
+        const auto &vert0 = mesh.getVert(v0);
+        const auto &vert1 = mesh.getVert(v1);
+        for (size_t i = 0; i < newVert.size(); ++i) {
+            newVert[i] = 0.5 * (vert0[i] + vert1[i]);
+        }
+        newVid = mesh.addVert(newVert);
+
+        // === 3. 准备待删除和替换的元素 ===
+        std::unordered_set<Index> cellsToRemove(mesh.edgeCells(eid).begin(), mesh.edgeCells(eid).end());
+        std::unordered_set<Index> facesToRemove;
+        std::unordered_set<Index> edgesToRemove{eid};
+        std::unordered_map<Index, Index> edgeReplacements;
+        std::unordered_map<Index, Index> faceReplacements;
+
+        // === 4. 处理关联四面体 ===
+        for (Index cid : cellsToRemove) {
+            const auto &cell = mesh.getCell(cid);
+            // 4.1 验证四面体有效性
+            if (cell.type() != CellType::CELL_TET) {
+                throw std::runtime_error("Non-tetrahedron found in supposedly tetrahedral mesh");
+            }
+
+            // 查找另外两个顶点
+            std::array<Index, 2> otherVerts;
+            size_t found = 0;
+            for (size_t i = 0; i < 4; ++i) {
+                Index vid = cell.verts()[i];
+                if (vid != v0 && vid != v1) otherVerts[found++] = vid;
+            }
+            if (found != 2) continue;
+            const Index v2 = otherVerts[0], v3 = otherVerts[1];
+
+            // 4.2 创建新边并记录替换关系
+            Index newEdge1 = mesh.addEdge(v2, newVid);
+            Index newEdge2 = mesh.addEdge(v3, newVid);
+
+            // 处理四条需要替换的边
+            const auto processEdge = [&](Index a, Index b, Index newEdge) {
+                Index oldEdge = mesh.getEdgeIndex(a, b);
+                if (oldEdge == kInvalidIndex) {
+                    throw std::runtime_error("Missing adjacent edges in tetrahedron");
+                }
+                edgesToRemove.insert(oldEdge);
+                edgeReplacements[oldEdge] = newEdge;
+            };
+            processEdge(v0, v2, newEdge1);
+            processEdge(v0, v3, newEdge2);
+            processEdge(v1, v2, newEdge1);
+            processEdge(v1, v3, newEdge2);
+
+            // 4.3 处理四个三角形面
+            const std::array<std::array<Index, 3>, 4> faceConfigs = {std::array<Index, 3>{v0, v1, v2}, std::array<Index, 3>{v0, v1, v3},
+                                                                     std::array<Index, 3>{v0, v2, v3}, std::array<Index, 3>{v1, v2, v3}};
+
+            for (size_t i = 0; i < 4; ++i) {
+                Index fid = mesh.getFaceIndex<FaceType::FACE_TRI>(faceConfigs[i].data(), 3);
+                if (fid == kInvalidIndex) {
+                    throw std::runtime_error("Missing adjacent faces in tetrahedron");
+                }
+                facesToRemove.insert(fid);
+
+                // 只替换包含v0和v1的面（最后两个面）
+                if (i >= 2) {
+                    std::array<Index, 3> newFaceVerts;
+                    for (size_t j = 0; j < 3; ++j) {
+                        newFaceVerts[j] = (faceConfigs[i][j] == v0 || faceConfigs[i][j] == v1) ? newVid : faceConfigs[i][j];
+                    }
+                    Index newFid = mesh.addFace<FaceType::FACE_TRI>(newFaceVerts.data(), 3);
+                    faceReplacements[fid] = newFid;
+                }
+            }
+        }
+
+        // === 5. 更新单元连接关系 ===
+        for (Index oldVid : {v0, v1}) {
+            // 5.1 更新单元连接
+            for (Index cid : mesh.vertCells(oldVid)) {
+                if (cellsToRemove.count(cid) == 0) {
+                    auto &cell = *mesh.cells_[cid];
+                    // 更新顶点引用
+                    for (size_t i = 0; i < cell.numVerts(); ++i) {
+                        if (cell.verts()[i] == oldVid) {
+                            cell.verts()[i] = newVid;
+                        }
+                    }
+                    // 更新边引用
+                    for (size_t i = 0; i < cell.numEdges(); ++i) {
+                        auto it = edgeReplacements.find(cell.edges()[i]);
+                        if (it != edgeReplacements.end()) {
+                            cell.edges()[i] = it->second;
+                        }
+                    }
+                    // 更新面引用
+                    for (size_t i = 0; i < cell.numFaces(); ++i) {
+                        auto it = faceReplacements.find(cell.faces()[i]);
+                        if (it != faceReplacements.end()) {
+                            cell.faces()[i] = it->second;
+                        }
+                    }
+                }
+            }
+
+            // 5.2 更新面连接
+            for (Index fid : mesh.vertFaces(oldVid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    auto &face = *mesh.faces_[fid];
+                    // 更新顶点引用
+                    for (size_t i = 0; i < face.numVerts(); ++i) {
+                        if (face.verts()[i] == oldVid) {
+                            face.verts()[i] = newVid;
+                        }
+                    }
+                    // 更新边引用
+                    for (size_t i = 0; i < face.numEdges(); ++i) {
+                        auto it = edgeReplacements.find(face.edges()[i]);
+                        if (it != edgeReplacements.end()) {
+                            face.edges()[i] = it->second;
+                        }
+                    }
+                }
+            }
+
+            // 5.3 更新边连接
+            for (Index eid : mesh.vertEdges(oldVid)) {
+                if (edgesToRemove.count(eid) == 0) {
+                    auto &edge = mesh.edges_[eid];
+                    if (edge.verts()[0] == oldVid) edge.verts()[0] = newVid;
+                    if (edge.verts()[1] == oldVid) edge.verts()[1] = newVid;
+                }
+            }
+        }
+
+        // === 6. 更新拓扑关系 ===
+        for (Index vid : {v0, v1}) {
+            // 6.1 更新顶点->边映射
+            for (Index eid : mesh.vertEdges(vid)) {
+                if (edgesToRemove.count(eid) == 0) {
+                    mesh.vertToEdges_[newVid].insert(eid);
+                }
+            }
+            mesh.vertToEdges_[vid].clear();
+
+            // 6.2 更新顶点->面映射
+            for (Index fid : mesh.vertFaces(vid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    mesh.vertToFaces_[newVid].insert(fid);
+                }
+            }
+            mesh.vertToFaces_[vid].clear();
+
+            // 6.3 更新顶点->单元映射
+            for (Index cid : mesh.vertCells(vid)) {
+                if (cellsToRemove.count(cid) == 0) {
+                    mesh.vertToCells_[newVid].insert(cid);
+                }
+            }
+            mesh.vertToCells_[vid].clear();
+        }
+
+        // 6.4 更新边->面映射
+        for (const auto [oldEid, newEid] : edgeReplacements) {
+            for (Index fid : mesh.edgeFaces(oldEid)) {
+                if (facesToRemove.count(fid) == 0) {
+                    mesh.edgeToFaces_[newEid].insert(fid);
+                }
+            }
+            mesh.edgeToFaces_[oldEid].clear();
+
+            // 6.5 更新边->单元映射
+            for (Index cid : mesh.edgeCells(oldEid)) {
+                if (cellsToRemove.count(cid) == 0) {
+                    mesh.edgeToCells_[newEid].insert(cid);
+                }
+            }
+            mesh.edgeToCells_[oldEid].clear();
+        }
+
+        // 6.6 更新面->单元映射
+        for (const auto [oldFid, newFid] : faceReplacements) {
+            for (Index cid : mesh.faceCells(oldFid)) {
+                if (cellsToRemove.count(cid) == 0) {
+                    mesh.faceToCells_[newFid].insert(cid);
+                }
+            }
+            mesh.faceToCells_[oldFid].clear();
+        }
+
+        // === 7. 清理无效元素 ===
+        for (Index cid : cellsToRemove) mesh.removeCell(cid);
+        for (Index fid : facesToRemove) mesh.removeFace(fid);
+        for (Index eid : edgesToRemove) mesh.removeEdge(eid);
+
+        // 清理孤立的面
+        for (const auto [oldFid, newFid] : faceReplacements) {
+            if (!mesh.isFaceRemoved(newFid) && mesh.faceCells(newFid).empty()) {
+                mesh.removeFace(newFid);
+            }
+        }
+
+        // 清理孤立的边
+        for (const auto [oldEid, newEid] : edgeReplacements) {
+            if (!mesh.isEdgeRemoved(newEid) && mesh.edgeCells(newEid).empty() && mesh.edgeFaces(newEid).empty()) {
+                mesh.removeEdge(newEid);
+            }
+        }
+    }
+};
 
 namespace io {
 namespace detail {
