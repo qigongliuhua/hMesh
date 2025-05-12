@@ -54,6 +54,9 @@ void TestSurfaceMesh() {
         ASSERT_TRUE(mesh.getFace(2).type() == FaceType::FACE_QUAD);
         ASSERT_EQUAL(mesh.getEdgeIndex(0, 1), 0);
         ASSERT_EQUAL(mesh.getFaceIndex<FaceType::FACE_TRI>({0, 1, 2}), 0);
+        ASSERT_TRUE(mesh.isVertRemoved(mesh.numVerts()));
+        ASSERT_TRUE(mesh.isEdgeRemoved(mesh.numEdges()));
+        ASSERT_TRUE(mesh.isFaceRemoved(mesh.numFaces()));
 
         // 添加重复面(f4)
         ASSERT_EQUAL(mesh.addFace<FaceType::FACE_QUAD>({0, 3, 5, 2}), 4);

@@ -73,6 +73,7 @@ void TestVolumeMesh() {
         ASSERT_EQUAL(vol.faceCells(vol.getCell(1).faces()[4]).size(), 2);
         ASSERT_EQUAL(vol.getCellIndex<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 7}), 0);
         ASSERT_EQUAL(vol.getCellIndex<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 8}), vol.kInvalidIndex);
+        ASSERT_TRUE(vol.isCellRemoved(vol.numCells()));
 
         ASSERT_TRUE(vol.getVertAttributes().addAttribute<int>("id"));
         for (int i = 0; i < 12; ++i) {

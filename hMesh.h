@@ -1149,7 +1149,7 @@ class SurfaceMesh {
      * @param id 要检查的顶点索引ID
      * @return 如果顶点已被移除返回true，否则返回false
      */
-    bool isVertRemoved(Index id) const { return freeVerts_.count(id) != 0; }
+    bool isVertRemoved(Index id) const { return id >= verts_.size() || freeVerts_.count(id) != 0; }
 
     /**
      * @brief 在顶点a和b之间添加一条边
@@ -1177,7 +1177,7 @@ class SurfaceMesh {
      * @param id 要检查的边索引ID
      * @return 如果边已被移除返回true，否则返回false
      */
-    bool isEdgeRemoved(Index id) const { return freeEdges_.count(id) != 0; }
+    bool isEdgeRemoved(Index id) const { return id >= edges_.size() || freeEdges_.count(id) != 0; }
     /**
      * @brief 获取连接两个顶点的边的索引ID
      * @param a 边的第一个顶点索引ID
@@ -1224,7 +1224,7 @@ class SurfaceMesh {
      * @param id 要检查的面索引ID
      * @return 如果面已被移除返回true，否则返回false
      */
-    bool isFaceRemoved(Index id) const { return freeFaces_.count(id) != 0; }
+    bool isFaceRemoved(Index id) const { return id >= faces_.size() || freeFaces_.count(id) != 0; }
     /**
      * @brief 获取由指定顶点构成的面索引ID
      * @tparam FTYPE 面的类型（如三角形、四边形）
@@ -1615,7 +1615,7 @@ class VolumeMesh : public SurfaceMesh<Index, VertexContainer, AttributeName> {
      * @param id 要检查的单元索引ID
      * @return 如果单元已被移除返回true，否则返回false
      */
-    bool isCellRemoved(Index id) const { return freeCells_.count(id) != 0; }
+    bool isCellRemoved(Index id) const { return id >= cells_.size() || freeCells_.count(id) != 0; }
     /**
      * @brief 获取由指定元素构成的单元索引ID
      * @tparam CTYPE 单元类型（如四面体、金字塔、三棱柱、六面体）
