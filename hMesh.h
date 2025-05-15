@@ -3628,6 +3628,8 @@ void LoadMesh(const std::string &filename, VolumeMesh<Index, VertexContainer, At
                             iss >> cell[j];
                             cell[j]--;
                         }
+                        reverse(cell.begin(), cell.begin() + 4);
+                        reverse(cell.begin() + 4, cell.begin() + 8);
                         m.addCell<CellType::CELL_HEX>(cell.data(), 8);
                     }
                 }
@@ -3687,10 +3689,29 @@ void SaveMesh(const std::string &filename, const VolumeMesh<Index, VertexContain
         f << "\n";
     };
 
+    auto writeHex = [&](const char *sectionName) {
+        const auto &indices = cellIndices[CellType::CELL_HEX];
+        if (indices.empty()) return;
+
+        f << sectionName << "\n" << indices.size() << "\n";
+        for (auto cellIdx : indices) {
+            const auto &cell = m.getCell(cellIdx);
+            array<Index, 8> idx;
+            copy_n(cell.verts(), idx.size(), idx.data());
+            reverse(idx.begin(), idx.begin() + 4);
+            reverse(idx.begin() + 4, idx.begin() + 8);
+            for (int j = 0; j < cell.numVerts(); ++j) {
+                f << (idx[j] + 1) << " ";
+            }
+            f << "1\n";
+        }
+        f << "\n";
+    };
+
     writeCells(CellType::CELL_TET, "Tetrahedra");
     writeCells(CellType::CELL_PYRAMID, "Pyramids");
     writeCells(CellType::CELL_PRISM, "Prisms");
-    writeCells(CellType::CELL_HEX, "Hexahedra");
+    writeHex("Hexahedra");
 }
 }  // namespace io
 };  // namespace hmesh

@@ -34,6 +34,13 @@ void TestVolumeMesh() {
         ASSERT_EQUAL(vol.numCells(), 4);
 
         hmesh::io::SaveMesh(ROOT_PATH "/result/c1.mesh", vol);
+        VolumeMesh vol2;
+        hmesh::io::LoadMesh(ROOT_PATH "/result/c1.mesh", vol2);
+        ASSERT_EQUAL(vol2.numVerts(), 12);
+        ASSERT_EQUAL(vol2.numEdges(), 24);
+        ASSERT_EQUAL(vol2.numFaces(), 17);
+        ASSERT_EQUAL(vol2.numCells(), 4);
+        hmesh::io::SaveMesh(ROOT_PATH "/result/c1_1.mesh", vol2);
 
         ASSERT_EQUAL(vol.vertEdges(0).size(), 3);
 
