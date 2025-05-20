@@ -151,7 +151,7 @@ inline constexpr CellDescriptor<8, 12, 6> HEX = {
     {{{0, 1, 2, 3}, {4, 7, 6, 5}, {0, 4, 5, 1}, {2, 6, 7, 3}, {1, 5, 6, 2}, {0, 3, 7, 4}}},              // 面上顶点的定义
     {4, 4, 4, 4, 4, 4},                                                                                  // 面上边的数量
     {{{0, 1, 2, 3}, {11, 10, 9, 8}, {4, 8, 5, 0}, {6, 9, 10, 2}, {5, 9, 6, 1}, {3, 11, 7, 4}}}           // 面上边的定义
-};  
+};
 /**
  * @brief 获取指定单元类型的描述符（单元拓扑信息）
  * @param type 单元类型枚举值
@@ -780,6 +780,11 @@ class AttributeStorageBase {
      */
     virtual void onResize(size_t newSize) = 0;
     /**
+     * @brief 重置指定ID对应的属性值
+     * @param newSize 要重置的元素的索引ID
+     */
+    virtual void onElementReset(size_t id) = 0;
+    /**
      * @brief 创建当前属性存储的深拷贝
      * @return 返回指向新拷贝的unique_ptr智能指针
      */
@@ -796,7 +801,7 @@ class AttributeStorage : public AttributeStorageBase<Index> {
     static_assert(std::is_integral_v<Index>, "Index must be an integer type");
 
    public:
-    AttributeStorage() = default;
+    AttributeStorage(const T defaultValue) : default_(defaultValue) {};
     ~AttributeStorage() = default;
     AttributeStorage(const AttributeStorage &) = delete;
     AttributeStorage(AttributeStorage &&) = delete;
@@ -839,6 +844,11 @@ class AttributeStorage : public AttributeStorageBase<Index> {
      */
     void onResize(size_t newSize) override;
     /**
+     * @brief 重置指定ID对应的属性值
+     * @param newSize 要重置的元素的索引ID
+     */
+    void onElementReset(size_t id) override;
+    /**
      * @brief 创建当前属性存储的深拷贝
      * @return 返回指向新拷贝的unique_ptr智能指针
      */
@@ -859,6 +869,7 @@ class AttributeStorage : public AttributeStorageBase<Index> {
 
    private:
     std::vector<unsigned char> data_{};
+    const T default_;
 };
 /**
  * @brief 属性存储模板类，用于存储和管理特定类型的网格属性数据
@@ -884,7 +895,7 @@ class AttributeManager {
      * @return 添加成功返回true，否则返回false
      */
     template <typename T>
-    bool addAttribute(const AttributeName &name);
+    bool addAttribute(const AttributeName &name, const T defaultValue);
     /**
      * @brief 移除指定名称的属性数据
      * @param name 要移除的属性名称
@@ -945,6 +956,11 @@ class AttributeManager {
      */
     void onResize(size_t newSize);
     /**
+     * @brief 重置指定ID对应的属性值
+     * @param newSize 要重置的元素的索引ID
+     */
+    void onElementReset(size_t id);
+    /**
      * @brief 清除所有属性数据
      */
     void clearAttributes();
@@ -976,11 +992,23 @@ void AttributeStorage<T, Index>::onElementCopy(Index fromId, Index toId) {
 }
 template <typename T, typename Index>
 void AttributeStorage<T, Index>::onResize(size_t newSize) {
+    const size_t oldSize = data_.size() / sizeof(T);
     data_.resize(newSize * sizeof(T));
+    for (size_t index = oldSize; index < newSize; ++index) {
+        std::memcpy(&data_[index * sizeof(T)], &default_, sizeof(T));
+    }
+}
+template <typename T, typename Index>
+void AttributeStorage<T, Index>::onElementReset(size_t id) {
+    size_t index = static_cast<size_t>(id);
+    if (index >= data_.size() / sizeof(T)) {
+        throw std::runtime_error("Element ID out of range");
+    }
+    std::memcpy(&data_[index * sizeof(T)], &default_, sizeof(T));
 }
 template <typename T, typename Index>
 std::unique_ptr<AttributeStorageBase<Index>> AttributeStorage<T, Index>::clone() const {
-    auto new_storage = std::make_unique<AttributeStorage<T, Index>>();
+    auto new_storage = std::make_unique<AttributeStorage<T, Index>>(this->default_);
     new_storage->data_ = this->data_;
     return new_storage;
 }
@@ -994,9 +1022,9 @@ const T *AttributeStorage<T, Index>::getPointer(size_t index) const {
 }
 template <typename Index, typename AttributeName>
 template <typename T>
-bool AttributeManager<Index, AttributeName>::addAttribute(const AttributeName &name) {
+bool AttributeManager<Index, AttributeName>::addAttribute(const AttributeName &name, const T defaultValue) {
     if (hasAttribute(name)) return false;
-    attributes_[name] = std::make_unique<AttributeStorage<T, Index>>();
+    attributes_[name] = std::make_unique<AttributeStorage<T, Index>>(defaultValue);
     attributes_[name]->onResize(size_);
     return true;
 }
@@ -1036,6 +1064,12 @@ void AttributeManager<Index, AttributeName>::onResize(size_t newSize) {
         storage->onResize(newSize);
     }
     size_ = newSize;
+}
+template <typename Index, typename AttributeName>
+void AttributeManager<Index, AttributeName>::onElementReset(size_t id) {
+    for (auto &[name, storage] : attributes_) {
+        storage->onElementReset(id);
+    }
 }
 template <typename Index, typename AttributeName>
 void AttributeManager<Index, AttributeName>::clearAttributes() {
@@ -2076,6 +2110,7 @@ void SurfaceMesh<Index, VertexContainer, AttributeName>::deallocateVert(Index id
     freeVerts_.insert(id);
     vertToEdges_[id].clear();
     vertToFaces_[id].clear();
+    vertAttributes_.onElementReset(id);
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 Index SurfaceMesh<Index, VertexContainer, AttributeName>::allocateEdge(const EdgeContainer &edge) {
@@ -2096,6 +2131,7 @@ template <typename Index, typename VertexContainer, typename AttributeName>
 void SurfaceMesh<Index, VertexContainer, AttributeName>::deallocateEdge(Index id) {
     freeEdges_.insert(id);
     edgeToFaces_[id].clear();
+    edgeAttributes_.onElementReset(id);
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 Index SurfaceMesh<Index, VertexContainer, AttributeName>::allocateFace(const FacePtr &face) {
@@ -2114,6 +2150,7 @@ Index SurfaceMesh<Index, VertexContainer, AttributeName>::allocateFace(const Fac
 template <typename Index, typename VertexContainer, typename AttributeName>
 void SurfaceMesh<Index, VertexContainer, AttributeName>::deallocateFace(Index id) {
     freeFaces_.insert(id);
+    faceAttributes_.onElementReset(id);
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 void SurfaceMesh<Index, VertexContainer, AttributeName>::defragmentVertices() {
@@ -2580,6 +2617,7 @@ Index VolumeMesh<Index, VertexContainer, AttributeName>::allocateCell(const Cell
 template <typename Index, typename VertexContainer, typename AttributeName>
 void VolumeMesh<Index, VertexContainer, AttributeName>::deallocateCell(Index id) {
     freeCells_.insert(id);
+    cellAttributes_.onElementReset(id);
 }
 template <typename Index, typename VertexContainer, typename AttributeName>
 void VolumeMesh<Index, VertexContainer, AttributeName>::defragmentVertices() {

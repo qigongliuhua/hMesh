@@ -82,11 +82,11 @@ void TestVolumeMesh() {
         ASSERT_EQUAL(vol.getCellIndex<CellType::CELL_HEX>({0, 1, 2, 3, 4, 5, 6, 8}), vol.kInvalidIndex);
         ASSERT_TRUE(vol.isCellRemoved(vol.numCells()));
 
-        ASSERT_TRUE(vol.getVertAttributes().addAttribute<int>("id"));
+        ASSERT_TRUE(vol.getVertAttributes().addAttribute<int>("id", numeric_limits<int>::max()));
         for (int i = 0; i < 12; ++i) {
             vol.getVertAttributes().getAttribute<int>("id")->setElement(i, i);
         }
-        ASSERT_TRUE(vol.getCellAttributes().addAttribute<int>("testdata"));
+        ASSERT_TRUE(vol.getCellAttributes().addAttribute<int>("testdata", numeric_limits<int>::max()));
         vol.getCellAttributes().getAttribute<int>("testdata")->setElement(0, 0);
         vol.getCellAttributes().getAttribute<int>("testdata")->setElement(1, 1);
         vol.getCellAttributes().getAttribute<int>("testdata")->setElement(2, 2);
@@ -346,6 +346,33 @@ void TestVolumeMesh() {
             ASSERT_TRUE(it == vol.cellIndexEnd());
         }
     });
+
+    suite.addTestCase("Test Attribute", []() {
+        VolumeMesh m;
+        const size_t VALUE_DEFAULT = m.kInvalidIndex;
+        const size_t VALUE_1 = m.kInvalidIndex - 1;
+        const size_t VALUE_2 = m.kInvalidIndex - 2;
+        const size_t VALUE_3 = m.kInvalidIndex - 3;
+
+        ASSERT_EQUAL(m.addVert({0, 0, 0}), 0);
+        m.getVertAttributes().addAttribute<size_t>("attr", VALUE_DEFAULT);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(0), VALUE_DEFAULT);
+        m.getVertAttributes().getAttribute<size_t>("attr")->setElement(0, VALUE_1);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(0), VALUE_1);
+        ASSERT_EQUAL(m.addVert({1, 0, 0}), 1);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(1), VALUE_DEFAULT);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(0), VALUE_1);
+        m.getVertAttributes().getAttribute<size_t>("attr")->setElement(1, VALUE_2);
+        m.removeVert(0);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(0), VALUE_DEFAULT);
+        ASSERT_EQUAL(m.getVertAttributes().getAttribute<size_t>("attr")->getElement(1), VALUE_2);
+
+        VolumeMesh copy;
+        copy.copyFrom(m);
+        ASSERT_EQUAL(copy.getVertAttributes().getAttribute<size_t>("attr")->getElement(0), VALUE_DEFAULT);
+        ASSERT_EQUAL(copy.getVertAttributes().getAttribute<size_t>("attr")->getElement(1), VALUE_2);
+        ASSERT_NOT_EQUAL(copy.getVertAttributes().getAttribute<size_t>("attr")->getElement(1), VALUE_3);
+        });
 
     suite.run();
 }

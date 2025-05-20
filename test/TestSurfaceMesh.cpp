@@ -167,7 +167,7 @@ void TestSurfaceMesh() {
         ASSERT_EQUAL(mesh.getFaceIndex<FaceType::FACE_POLYGON>({0, 1, 6, 5, 4}), 0);
 
         using TestAttribute = std::array<size_t, 2>;
-        ASSERT_TRUE(mesh.getFaceAttributes().addAttribute<TestAttribute>("testdata"));
+        ASSERT_TRUE(mesh.getFaceAttributes().addAttribute<TestAttribute>("testdata", {mesh.kInvalidIndex, mesh.kInvalidIndex}));
         ASSERT_FALSE(mesh.getFaceAttributes().hasAttribute("not exist"));
         auto testdata = mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata");
         for (size_t fid : mesh.faceIndices()) {
@@ -204,7 +204,7 @@ void TestSurfaceMesh() {
         ASSERT_FALSE(mesh.getFaceAttributes().hasAttribute("testdata"));
         ASSERT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata"), nullptr);
 
-        ASSERT_TRUE(mesh.getFaceAttributes().addAttribute<TestAttribute>("testdata"));
+        ASSERT_TRUE(mesh.getFaceAttributes().addAttribute<TestAttribute>("testdata", {mesh.kInvalidIndex, mesh.kInvalidIndex}));
         ASSERT_TRUE(mesh.getFaceAttributes().hasAttribute("testdata"));
         ASSERT_NOT_EQUAL(mesh.getFaceAttributes().getAttribute<TestAttribute>("testdata"), nullptr);
         mesh.clearAttributes();
@@ -213,11 +213,11 @@ void TestSurfaceMesh() {
     });
 
     suite.addTestCase("Basic Ability Test 3", []() {
-        enum AttributeType { Color };
+        enum AttributeType { Color, Default };
 
         hmesh::SurfaceMesh<int, std::array<double, 3>, AttributeType> mesh;
         mesh.addVert({0, 0, 0});
-        mesh.getVertAttributes().addAttribute<double>(AttributeType::Color);
+        mesh.getVertAttributes().addAttribute<double>(AttributeType::Color, AttributeType::Default);
         mesh.getVertAttributes().getAttribute<double>(AttributeType::Color)->setElement(0, 1.0);
     });
 
