@@ -131,7 +131,7 @@ void SaveMesh(const std::string& filename, const VolumeMesh<...>& m, int precisi
 
 ### 基本体单元的定义
 
-![基本的体单元的定义](.\docs\基本的体单元的定义.png)
+![基本的体单元的定义](./docs/基本的体单元的定义.png)
 
 
 ## 使用范例
