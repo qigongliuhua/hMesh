@@ -183,8 +183,8 @@ SurfaceMesh mesh;
 
 using Color = std::array<double, 3>; // 颜色数据结构
 
-// 为顶点添加颜色属性
-mesh.getVertAttributes().addAttribute<Color>("color");
+// 为顶点添加颜色属性，默认值为黑色
+mesh.getVertAttributes().addAttribute<Color>("color", {0.0, 0.0, 0.0});
 
 // 添加一个顶点
 mesh.addVert({0.0, 0.0, 0.0});
